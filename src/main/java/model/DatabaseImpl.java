@@ -52,9 +52,7 @@ public class DatabaseImpl implements Database {
 
     @Override
     public boolean update(String tableName, List<String> values, int id) {
-        Lock tableWriteLock = Optional.ofNullable(tableLocks.get(tableName))
-                .orElseThrow(TableNotFoundException::new)
-                .writeLock();
+        Lock tableWriteLock = getReentrantLock(tableName).writeLock();
         tableWriteLock.lock();
         try {
             Path tableFile = Paths.get(dataStoreBaseDir, tableName);
@@ -94,8 +92,7 @@ public class DatabaseImpl implements Database {
 
     @Override
     public List<String> select(String tableName, int id) {
-        tableLocks.putIfAbsent(tableName, new ReentrantReadWriteLock());
-        Lock tableReadLock = tableLocks.get(tableName).readLock();
+        Lock tableReadLock = getReentrantLock(tableName).readLock();
         tableReadLock.lock();
         List<String> ret = null;
         try (Stream<String> stream = Files.lines(Paths.get(dataStoreBaseDir, tableName))) {
@@ -116,6 +113,11 @@ public class DatabaseImpl implements Database {
         }
 
         return ret;
+    }
+
+    private ReentrantReadWriteLock getReentrantLock(String tableName) {
+        return Optional.ofNullable(tableLocks.get(tableName))
+                .orElseThrow(TableNotFoundException::new);
     }
 
     private Integer incrementId(String tableName) {
